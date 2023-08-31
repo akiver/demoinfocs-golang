@@ -61,6 +61,7 @@ type gameState struct {
 	// player-flashed events at the end of the frame if there are any.
 	// This slice acts like a FIFO queue, the first projectile inserted is the first one to be removed when it exploded.
 	flyingFlashbangs []*FlyingFlashbang
+	weaponFires      []*events.WeaponFire
 }
 
 type FlyingFlashbang struct {
@@ -242,6 +243,7 @@ func newGameState(demoInfo demoInfoProvider) *gameState {
 		entities:           make(map[int]st.Entity),
 		thrownGrenades:     make(map[*common.Player][]*common.Equipment),
 		flyingFlashbangs:   make([]*FlyingFlashbang, 0),
+		weaponFires:        make([]*events.WeaponFire, 0),
 		lastFlash: lastFlash{
 			projectileByPlayer: make(map[*common.Player]*common.GrenadeProjectile),
 		},

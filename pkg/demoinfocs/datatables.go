@@ -490,6 +490,66 @@ func (p *parser) bindNewPlayerControllerS2(controllerEntity st.Entity) {
 			p.eventDispatcher.Dispatch(events.BotConnect{Player: pl})
 		}
 	}
+
+	if p.isSource2() && !p.disableMimicSource1GameEvents {
+		health := int(controllerEntity.PropertyValueMust("m_iPawnHealth").S2UInt64())
+		armor := controllerEntity.PropertyValueMust("m_iPawnArmor").Int()
+
+		controllerEntity.Property("m_iPawnHealth").OnUpdate(func(val st.PropertyValue) {
+			newHealth := int(val.S2UInt64())
+			newArmor := controllerEntity.PropertyValueMust("m_iPawnArmor").Int()
+			if len(p.gameState.weaponFires) == 0 {
+				return
+			}
+
+			lastWeaponFireEvent := p.gameState.weaponFires[len(p.gameState.weaponFires)-1]
+			if lastWeaponFireEvent == nil {
+				return
+			}
+
+			healthDamage := int(health - newHealth)
+			armorDamage := int(armor - newArmor)
+			healthDamageTaken := healthDamage
+			armorDamageTaken := armorDamage
+
+			if healthDamageTaken > 100 {
+				healthDamageTaken = 100
+			}
+			if armorDamageTaken > 100 {
+				armorDamageTaken = 100
+			}
+
+			if newHealth == 0 {
+				healthDamageTaken = health
+			}
+			if newArmor == 0 {
+				armorDamageTaken = armor
+			}
+
+			if newHealth < health {
+				p.gameEventHandler.dispatch(events.PlayerHurt{
+					Player:            pl,
+					Health:            newHealth,
+					Armor:             newArmor,
+					HealthDamage:      healthDamage,
+					ArmorDamage:       armorDamage,
+					HealthDamageTaken: healthDamageTaken,
+					ArmorDamageTaken:  armorDamageTaken,
+					Attacker:          lastWeaponFireEvent.Shooter,
+					Weapon:            lastWeaponFireEvent.Weapon,
+					HitGroup:          events.HitGroupGeneric, // TODO How can we get the hitgroup?
+				})
+				p.gameState.weaponFires = p.gameState.weaponFires[:len(p.gameState.weaponFires)-1]
+			}
+			health = newHealth
+		})
+
+		// Armor is updated after health
+		controllerEntity.Property("m_iPawnArmor").OnUpdate(func(val st.PropertyValue) {
+			newArmor := val.Int()
+			armor = newArmor
+		})
+	}
 }
 
 func (p *parser) bindNewPlayerPawnS2(pawnEntity st.Entity) {
@@ -773,10 +833,12 @@ func (p *parser) bindGrenadeProjectiles(entity st.Entity) {
 		}
 
 		if p.isSource2() && !p.disableMimicSource1GameEvents {
-			p.eventDispatcher.Dispatch(events.WeaponFire{
+			weaponFire := events.WeaponFire{
 				Shooter: proj.Owner,
 				Weapon:  proj.WeaponInstance,
-			})
+			}
+			p.eventDispatcher.Dispatch(weaponFire)
+			p.gameState.weaponFires = append(p.gameState.weaponFires, &weaponFire)
 		}
 
 		p.eventDispatcher.Dispatch(events.GrenadeProjectileThrow{
@@ -916,10 +978,12 @@ func (p *parser) bindWeaponS2(entity st.Entity) {
 				shooter = equipment.Owner
 			}
 			if shooter != nil && val.Float() > 0 {
-				p.eventDispatcher.Dispatch(events.WeaponFire{
+				weaponFire := events.WeaponFire{
 					Shooter: shooter,
 					Weapon:  equipment,
-				})
+				}
+				p.eventDispatcher.Dispatch(weaponFire)
+				p.gameState.weaponFires = append(p.gameState.weaponFires, &weaponFire)
 			}
 		})
 	}

@@ -439,6 +439,10 @@ func (geh gameEventHandler) playerDeath(data map[string]*msg.CSVCMsg_GameEventKe
 }
 
 func (geh gameEventHandler) playerHurt(data map[string]*msg.CSVCMsg_GameEventKeyT) {
+	if geh.parser.isSource2() && !geh.parser.disableMimicSource1GameEvents {
+		return
+	}
+
 	userID := data["userid"].GetValShort()
 	player := geh.playerByUserID32(userID)
 	attacker := geh.playerByUserID32(data["attacker"].GetValShort())
@@ -1086,4 +1090,5 @@ func (p *parser) processFrameGameEvents() {
 	}
 
 	p.delayedEventHandlers = p.delayedEventHandlers[:0]
+	// p.gameState.weaponFires = p.gameState.weaponFires[:0]
 }
